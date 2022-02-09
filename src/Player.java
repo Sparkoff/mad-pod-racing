@@ -20,6 +20,10 @@ class Player {
             return Math.sqrt(Math.pow(other.x - x, 2) + Math.pow(other.y - y, 2));
         }
 
+        public static double distance(Point p1, Point p2) {
+            return p1.distance(p2);
+        }
+
         public static Point rotation(Point origin, Point target, int angle) {
             return new Point(
                     (int) ((target.x - origin.x) * Math.cos(Math.toRadians(angle)) + (target.y - origin.y) * Math.sin(Math.toRadians(angle)) + origin.x),
@@ -43,6 +47,25 @@ class Player {
         @Override
         public String toString() {
             return String.format("(%d,%d)", x, y);
+        }
+
+        public int getX() {
+            return x;
+        }
+
+        public int getY() {
+            return y;
+        }
+    }
+
+    public static class Vector extends Point {
+
+        public Vector(int x, int y) {
+            super(x, y);
+        }
+
+        public int scalaire(Vector other) {
+            return getX() * other.getX() + getY() * other.getY();
         }
     }
 
@@ -121,10 +144,36 @@ class Player {
         }
     }
 
+    public static class Pod {
+        private final List<Point> path = new ArrayList<>();
+
+        public void addPosition(Point currentPosition) {
+            path.add(currentPosition);
+        }
+
+        public int currentSpeed() {
+            if (path.size() < 2)
+                return 0;
+            return (int) path.get(path.size() - 1).distance(path.get(path.size() - 2));
+        }
+
+        public Vector currentSpeedVector() {
+            if (path.size() < 2)
+                return new Vector(0,0);
+
+            Point p0 = path.get(path.size() - 1);
+            Point p_1 = path.get(path.size() - 2);
+            return new Vector(p0.x - p_1.x, p0.y - p_1.y);
+        }
+    }
+
     public static void main(String args[]) {
         Scanner in = new Scanner(System.in);
 
         RaceMap raceMap = new RaceMap();
+        Pod ownPod = new Pod();
+        Pod opponentPod = new Pod();
+
         boolean boostHappened = false;
         int shieldHappened = 0;
 
@@ -141,10 +190,14 @@ class Player {
 
             Point currentPosition = new Point(x, y);
             Point nextCheckpoint = new Point(nextCheckpointX, nextCheckpointY);
-            Point oppenent = new Point(opponentX, opponentY);
+            Point opponent = new Point(opponentX, opponentY);
 
             // explore map
             raceMap.nextCheckpoint(nextCheckpoint);
+
+            // update Pods
+            ownPod.addPosition(currentPosition);
+            opponentPod.addPosition(opponent);
 
             // Write an action using System.out.println()
             // To debug: System.err.println("Debug messages...");
@@ -154,7 +207,12 @@ class Player {
             // followed by the power (0 <= thrust <= 100)
             // i.e.: "x y thrust"
             List<String> optimisationDebug = new ArrayList<>();
-            if (currentPosition.distance(oppenent) < 840) {
+            if (currentPosition.distance(opponent) < 840
+                    && ownPod.currentSpeed() > 400
+                    && opponentPod.currentSpeed() > 400
+                    && ownPod.currentSpeedVector().scalaire(opponentPod.currentSpeedVector()) >= 0
+                    && nextCheckpointDist < opponent.distance(nextCheckpoint)
+            ) {
                 System.out.println(nextCheckpoint.x + " " + nextCheckpoint.y + " SHIELD");
                 optimisationDebug.add("shield");
                 shieldHappened++;
@@ -211,7 +269,7 @@ class Player {
 //            }
 //
 //            int minThrust = 5;
-//            int thrust = (int) ((100 - minThrust) * distOptim * angleOptim) + minThrust;
+//            int thrust = (int) ((100 - minThrust) * Math.min(distOptim, angleOptim)) + minThrust;
 //
 //
 //            // Propagate pod commands
@@ -229,6 +287,7 @@ class Player {
                     "optim: " + String.join(" ", optimisationDebug),
                     (boostHappened ? "boosh happened" : "no boost yet"),
                     "shiled activated: " + shieldHappened,
+                    "pod speed: " + ownPod.currentSpeed() + ", opponent speed: " + opponentPod.currentSpeed(),
                     "input: " + String.format("(pod: %s, checkpoint: %s, dist: %d, angle: %d)", currentPosition, nextCheckpoint, nextCheckpointDist, nextCheckpointAngle)
             ));
 
