@@ -1,5 +1,5 @@
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
 
 /**
  * Auto-generated code below aims at helping you parse
@@ -64,8 +64,13 @@ class Player {
             super(x, y);
         }
 
-        public int scalaire(Vector other) {
-            return getX() * other.getX() + getY() * other.getY();
+        public int scalar(Vector other) {
+            return this.getX() * other.getX() + this.getY() * other.getY();
+        }
+
+        public int angleWith(Vector other) {
+            int angle = (int) Math.toDegrees(Math.abs(Math.atan2(other.getY(), other.getX()) - Math.atan2(this.getY(), this.getX())));
+            return angle > 180 ? 360 - angle : angle;   // Keeps the angle between -180 and 180, like given checkpoint angle
         }
     }
 
@@ -146,9 +151,15 @@ class Player {
 
     public static class Pod {
         private final List<Point> path = new ArrayList<>();
+        private Point currentPosition;
+        private Vector currentSpeedVector;
+        private Point nextPoint;
 
         public void addPosition(Point currentPosition) {
             path.add(currentPosition);
+            this.currentPosition = currentPosition;
+            this.currentSpeedVector = currentSpeedVector();
+            this.nextPoint = nextPoint();
         }
 
         public int currentSpeed() {
@@ -165,6 +176,22 @@ class Player {
             Point p_1 = path.get(path.size() - 2);
             return new Vector(p0.x - p_1.x, p0.y - p_1.y);
         }
+
+        public Point nextPoint() {
+            if (currentPosition != null && currentSpeedVector != null) {
+                return new Point(currentPosition.x + currentSpeedVector.getX(), currentPosition.y + currentSpeedVector.getY());
+            } else {
+                return new Point(-1, -1);
+            }
+        }
+
+        public Vector getCurrentSpeedVector() {
+            return this.currentSpeedVector;
+        }
+
+        public Point getNextPoint() {
+            return this.nextPoint;
+        }
     }
 
     public static void main(String args[]) {
@@ -179,18 +206,14 @@ class Player {
 
         // game loop
         while (true) {
-            int x = in.nextInt();
-            int y = in.nextInt();
-            int nextCheckpointX = in.nextInt(); // x position of the next check point
-            int nextCheckpointY = in.nextInt(); // y position of the next check point
+            Point currentPosition = new Point(in.nextInt(), in.nextInt());
+            Point nextCheckpoint = new Point(in.nextInt(), in.nextInt()); // position of the next check point
             int nextCheckpointDist = in.nextInt(); // distance to the next checkpoint
             int nextCheckpointAngle = in.nextInt(); // angle between your pod orientation and the direction of the next checkpoint
-            int opponentX = in.nextInt();
-            int opponentY = in.nextInt();
+            Point opponent = new Point(in.nextInt(), in.nextInt());
 
-            Point currentPosition = new Point(x, y);
-            Point nextCheckpoint = new Point(nextCheckpointX, nextCheckpointY);
-            Point opponent = new Point(opponentX, opponentY);
+            String thrust = "100";
+            Point target = nextCheckpoint;
 
             // explore map
             raceMap.nextCheckpoint(nextCheckpoint);
@@ -198,43 +221,35 @@ class Player {
             // update Pods
             ownPod.addPosition(currentPosition);
             opponentPod.addPosition(opponent);
+            int angleWithOpponent = ownPod.getCurrentSpeedVector().angleWith(opponentPod.getCurrentSpeedVector());
 
-            // Write an action using System.out.println()
-            // To debug: System.err.println("Debug messages...");
-
-
-            // You have to output the target position
-            // followed by the power (0 <= thrust <= 100)
-            // i.e.: "x y thrust"
             List<String> optimisationDebug = new ArrayList<>();
             if (currentPosition.distance(opponent) < 840
                     && ownPod.currentSpeed() > 400
                     && opponentPod.currentSpeed() > 400
-                    && ownPod.currentSpeedVector().scalaire(opponentPod.currentSpeedVector()) >= 0
+                    && ownPod.currentSpeedVector().scalar(opponentPod.currentSpeedVector()) >= 0
                     && nextCheckpointDist < opponent.distance(nextCheckpoint)
             ) {
-                System.out.println(nextCheckpoint.x + " " + nextCheckpoint.y + " SHIELD");
+                thrust = "SHIELD";
                 optimisationDebug.add("shield");
                 shieldHappened++;
             } else if (nextCheckpointDist < 1200) {
                 if (raceMap.mapFullyExplored && nextCheckpointDist < 800) {
-                    Point afterNext = raceMap.getAfterNext();
-                    System.out.println(afterNext.x + " " + afterNext.y + " 100");
+                    target = raceMap.getAfterNext();
                     optimisationDebug.add("afterNext");
                 } else {
-                    System.out.println(nextCheckpoint.x + " " + nextCheckpoint.y + " 50");
+                    thrust = "50";
                     optimisationDebug.add("pace down, dist to checkpoint");
                 }
             } else if (Math.abs(nextCheckpointAngle) > 90) {
-                System.out.println(nextCheckpoint.x + " " + nextCheckpoint.y + " 0");
+                thrust = "0";
                 optimisationDebug.add("pace down, changing tack");
             } else {
                 if (!boostHappened && Math.abs(nextCheckpointAngle) < 5 && raceMap.isLongestPath()) {
-                    System.out.println(nextCheckpoint.x + " " + nextCheckpoint.y + " BOOST");
+                    thrust = "BOOST";
                     boostHappened = true;
                     optimisationDebug.add("BOOST !!");
                 } else {
-                    System.out.println(nextCheckpoint.x + " " + nextCheckpoint.y + " 100");
                     optimisationDebug.add("none");
                 }
             }
@@ -282,12 +297,26 @@ class Player {
 //            }
 
             // Debug
+
+/*          Simple rules that allowed me to get to silver
+            if (Math.abs(nextCheckpointAngle) > 90) {
+                thrust = "0";
+            } else if (!boostHappened && Math.abs(nextCheckpointAngle) < 2 && nextCheckpointDist > 5000) {
+                thrust = "BOOST";
+                boostHappened = true;
+            }
+*/
+            System.out.println(target.x + " " + target.y + " " + thrust);
+
+
             System.err.println(String.join("\n",
                     raceMap.printStatus(),
                     "optim: " + String.join(" ", optimisationDebug),
-                    (boostHappened ? "boosh happened" : "no boost yet"),
-                    "shiled activated: " + shieldHappened,
+                    (boostHappened ? "boost happened" : "no boost yet"),
+                    "shield activated: " + shieldHappened,
                     "pod speed: " + ownPod.currentSpeed() + ", opponent speed: " + opponentPod.currentSpeed(),
+                    "pod next point: " + ownPod.getNextPoint() + ", opponent next point: " + opponentPod.getNextPoint(),
+                    "angle with opponent: " + angleWithOpponent + ", dist: " + currentPosition.distance(opponent),
                     "input: " + String.format("(pod: %s, checkpoint: %s, dist: %d, angle: %d)", currentPosition, nextCheckpoint, nextCheckpointDist, nextCheckpointAngle)
             ));
 
