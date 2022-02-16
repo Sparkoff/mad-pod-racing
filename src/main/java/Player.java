@@ -81,6 +81,7 @@ class Player {
         private boolean mapFullyExplored = false;
         private int lap = 1;
         private Point currentTarget;
+        private int tickCount = 1;
 
         public void nextCheckpoint(Point nextCheckpoint) {
 
@@ -139,13 +140,22 @@ class Player {
             return currentIndex == checkpoints.size() - 1 ? checkpoints.get(0) : checkpoints.get(currentIndex + 1);
         }
 
+        public void tick() {
+            tickCount++;
+        }
+
+        public boolean isFirstTick() {
+            return tickCount == 1;
+        }
+
         public String printStatus() {
             return String.format(
-                    "raceMap(lap: %d, checkpoints count: %d, fully explored: %b, long path: %d)",
+                    "raceMap(lap: %d, checkpoints count: %d, fully explored: %b, long path: %d, tick: %d)",
                     lap,
                     checkpoints.size(),
                     mapFullyExplored,
-                    checkpoints.indexOf(longestPath));
+                    checkpoints.indexOf(longestPath),
+                    tickCount);
         }
     }
 
@@ -222,6 +232,13 @@ class Player {
             ownPod.addPosition(currentPosition);
             opponentPod.addPosition(opponent);
             int angleWithOpponent = ownPod.getCurrentSpeedVector().angleWith(opponentPod.getCurrentSpeedVector());
+
+            // Coordinate drift
+            int theta = 0;
+            if (!raceMap.isFirstTick() && nextCheckpointAngle != 0) {
+                theta = (int) Math.abs(Math.toDegrees(Math.atan2(200, nextCheckpointDist))) * (-1 * nextCheckpointAngle / Math.abs(nextCheckpointAngle));
+                target = Point.rotation(currentPosition, nextCheckpoint, theta);
+            }
 
             List<String> optimisationDebug = new ArrayList<>();
             if (currentPosition.distance(opponent) < 840
@@ -317,9 +334,11 @@ class Player {
                     "pod speed: " + ownPod.currentSpeed() + ", opponent speed: " + opponentPod.currentSpeed(),
                     "pod next point: " + ownPod.getNextPoint() + ", opponent next point: " + opponentPod.getNextPoint(),
                     "angle with opponent: " + angleWithOpponent + ", dist: " + currentPosition.distance(opponent),
+                    "theta: " + theta,
                     "input: " + String.format("(pod: %s, checkpoint: %s, dist: %d, angle: %d)", currentPosition, nextCheckpoint, nextCheckpointDist, nextCheckpointAngle)
             ));
 
+            raceMap.tick();
         }
     }
 }
