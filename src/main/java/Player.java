@@ -1,5 +1,6 @@
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Auto-generated code below aims at helping you parse
@@ -164,6 +165,16 @@ class Player {
         private Point currentPosition;
         private Vector currentSpeedVector;
         private Point nextPoint;
+        private Vector currentSpeed;
+        private int currentAngle;
+        private int nextCheckpointId;
+
+        public void update(Point position, Vector speed, int angle, int checkpointId) {
+            addPosition(position);
+            currentSpeed = speed;
+            currentAngle = angle;
+            nextCheckpointId = checkpointId;
+        }
 
         public void addPosition(Point currentPosition) {
             path.add(currentPosition);
@@ -202,54 +213,51 @@ class Player {
         public Point getNextPoint() {
             return this.nextPoint;
         }
+
+        public Point getCurrentPosition() {
+            return currentPosition;
+        }
     }
 
-    public static void main(String args[]) {
-        Scanner in = new Scanner(System.in);
+    public static class OwnPod extends Pod {
+        private final RaceMap raceMap;
+        private final List<Pod> opponents;
+        private List<String> optimisationDebug = new ArrayList<>();
 
-        RaceMap raceMap = new RaceMap();
-        Pod ownPod = new Pod();
-        Pod opponentPod = new Pod();
+        public OwnPod(RaceMap raceMap, List<Pod> opponents) {
+            this.raceMap = raceMap;
+            this.opponents = opponents;
+        }
 
-        boolean boostHappened = false;
-        int shieldHappened = 0;
+        public boolean canCollideWithOpponent(Point nextCheckpoint, int nextCheckpointDist) {
+            for (Pod opponent : opponents) {
+                if (getCurrentPosition().distance(opponent.getCurrentPosition()) < 840
+                        && currentSpeed() > 400
+                        && opponent.currentSpeed() > 400
+                        && currentSpeedVector().scalar(opponent.currentSpeedVector()) >= 0
+                        && nextCheckpointDist < opponent.getCurrentPosition().distance(nextCheckpoint)
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
-        // game loop
-        while (true) {
-            Point currentPosition = new Point(in.nextInt(), in.nextInt());
-            Point nextCheckpoint = new Point(in.nextInt(), in.nextInt()); // position of the next check point
-            int nextCheckpointDist = in.nextInt(); // distance to the next checkpoint
-            int nextCheckpointAngle = in.nextInt(); // angle between your pod orientation and the direction of the next checkpoint
-            Point opponent = new Point(in.nextInt(), in.nextInt());
-
+        public String computeCommand() {
+            optimisationDebug = new ArrayList<>();
             String thrust = "100";
             Point target = nextCheckpoint;
-
-            // explore map
-            raceMap.nextCheckpoint(nextCheckpoint);
-
-            // update Pods
-            ownPod.addPosition(currentPosition);
-            opponentPod.addPosition(opponent);
-            int angleWithOpponent = ownPod.getCurrentSpeedVector().angleWith(opponentPod.getCurrentSpeedVector());
 
             // Coordinate drift
             int theta = 0;
             if (!raceMap.isFirstTick() && nextCheckpointAngle != 0) {
                 theta = (int) Math.abs(Math.toDegrees(Math.atan2(200, nextCheckpointDist))) * (-1 * nextCheckpointAngle / Math.abs(nextCheckpointAngle));
-                target = Point.rotation(currentPosition, nextCheckpoint, theta);
+                target = Point.rotation(getCurrentPosition(), nextCheckpoint, theta);
             }
 
-            List<String> optimisationDebug = new ArrayList<>();
-            if (currentPosition.distance(opponent) < 840
-                    && ownPod.currentSpeed() > 400
-                    && opponentPod.currentSpeed() > 400
-                    && ownPod.currentSpeedVector().scalar(opponentPod.currentSpeedVector()) >= 0
-                    && nextCheckpointDist < opponent.distance(nextCheckpoint)
-            ) {
+            if (canCollideWithOpponent(nextCheckpoint, nextCheckpointDist)) {
                 thrust = "SHIELD";
                 optimisationDebug.add("shield");
-                shieldHappened++;
             } else if (nextCheckpointDist < 1200) {
                 if (raceMap.mapFullyExplored && nextCheckpointDist < 800) {
                     target = raceMap.getAfterNext();
@@ -262,81 +270,53 @@ class Player {
                 thrust = "0";
                 optimisationDebug.add("pace down, changing tack");
             } else {
-                if (!boostHappened && Math.abs(nextCheckpointAngle) < 5 && raceMap.isLongestPath()) {
+                if (Math.abs(nextCheckpointAngle) < 5 && raceMap.isLongestPath()) {
                     thrust = "BOOST";
-                    boostHappened = true;
                     optimisationDebug.add("BOOST !!");
                 } else {
                     optimisationDebug.add("none");
                 }
             }
 
-            // Optimize target destination
-//            Point target = nextCheckpoint;
-//            if (raceMap.mapFullyExplored && nextCheckpointDist < 800) {
-//                //target = raceMap.getAfterNext();
-//                optimisationDebug.add("afterNext");
-//            } else if (Math.abs(nextCheckpointAngle) > 10
-//                    && Math.abs(nextCheckpointAngle) < 90
-//                    && nextCheckpointDist > 1200
-//                    && !raceMap.isLastPath(nextCheckpoint)) {
-//                // dynamic target correction : target a point with greater angle (doubled) to force pod to flip faster
-//                target = Point.rotation(currentPosition, nextCheckpoint, -nextCheckpointAngle);
-//                optimisationDebug.add("dynamicTarget");
-//            }
-//
-//            // Optimize speed
-//            int longRange = 1500;
-//            int shortRange = 200;
-//            double distOptim = 1. * (Math.max(Math.min(nextCheckpointDist, longRange), shortRange) - shortRange) / (longRange - shortRange);
-//            if (distOptim != 1) {
-//                optimisationDebug.add("approach (" + distOptim + ")");
-//            }
-//
-//            int openedAngle = 90;
-//            int closedAngle = 10;
-//            double angleOptim = 1. * (openedAngle - Math.max(Math.min(Math.abs(nextCheckpointAngle), openedAngle), closedAngle)) / (openedAngle - closedAngle);
-//            if (angleOptim != 1) {
-//                optimisationDebug.add("tack (" + angleOptim + ")");
-//            }
-//
-//            int minThrust = 5;
-//            int thrust = (int) ((100 - minThrust) * Math.min(distOptim, angleOptim)) + minThrust;
-//
-//
-//            // Propagate pod commands
-//            if (!boostHappened && Math.abs(nextCheckpointAngle) < 2 && raceMap.isLongestPath()) {
-//                System.out.println(target.x + " " + target.y + " BOOST");
-//                boostHappened = true;
-//                optimisationDebug.add("BOOST !!");
-//            } else {
-//                System.out.println(target.x + " " + target.y + " " + thrust);
-//            }
+            return target.x + " " + target.y + " " + thrust;
+        }
 
-            // Debug
+        public List<String> getOptimisationDebug() {
+            return optimisationDebug;
+        }
+    }
 
-/*          Simple rules that allowed me to get to silver
-            if (Math.abs(nextCheckpointAngle) > 90) {
-                thrust = "0";
-            } else if (!boostHappened && Math.abs(nextCheckpointAngle) < 2 && nextCheckpointDist > 5000) {
-                thrust = "BOOST";
-                boostHappened = true;
+    public static void main(String args[]) {
+        Scanner in = new Scanner(System.in);
+
+        RaceMap raceMap = new RaceMap();
+
+        List<Pod> opponentPods = new ArrayList<>();
+        opponentPods.add(new Pod());
+        opponentPods.add(new Pod());
+
+        List<OwnPod> ownPods = new ArrayList<>();
+        ownPods.add(new OwnPod(raceMap, opponentPods));
+        ownPods.add(new OwnPod(raceMap, opponentPods));
+
+        // game loop
+        while (true) {
+            for (OwnPod ownPod : ownPods) {
+                ownPod.update(new Point(in.nextInt(), in.nextInt()), new Vector(in.nextInt(), in.nextInt()), in.nextInt(), in.nextInt());
             }
-*/
-            System.out.println(target.x + " " + target.y + " " + thrust);
+            for (Pod opponentPod : opponentPods) {
+                opponentPod.update(new Point(in.nextInt(), in.nextInt()), new Vector(in.nextInt(), in.nextInt()), in.nextInt(), in.nextInt());
+            }
 
+            System.out.println(ownPods.stream().map(OwnPod::computeCommand).collect(Collectors.joining("\n")));
 
-            System.err.println(String.join("\n",
-                    raceMap.printStatus(),
-                    "optim: " + String.join(" ", optimisationDebug),
-                    (boostHappened ? "boost happened" : "no boost yet"),
-                    "shield activated: " + shieldHappened,
-                    "pod speed: " + ownPod.currentSpeed() + ", opponent speed: " + opponentPod.currentSpeed(),
-                    "pod next point: " + ownPod.getNextPoint() + ", opponent next point: " + opponentPod.getNextPoint(),
-                    "angle with opponent: " + angleWithOpponent + ", dist: " + currentPosition.distance(opponent),
-                    "theta: " + theta,
-                    "input: " + String.format("(pod: %s, checkpoint: %s, dist: %d, angle: %d)", currentPosition, nextCheckpoint, nextCheckpointDist, nextCheckpointAngle)
-            ));
+            List<String> debugs = new ArrayList<>();
+            debugs.add(raceMap.printStatus());
+            for (int i = 0; i < ownPods.size(); i++) {
+                debugs.add("Pod " + i + ":");
+                debugs.addAll(ownPods.get(i).optimisationDebug);
+            }
+            System.err.println(String.join("\n", debugs));
 
             raceMap.tick();
         }
