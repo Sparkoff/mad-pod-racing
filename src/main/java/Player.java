@@ -43,18 +43,21 @@ class Player {
     }
 
     public static class Pod {
-        private final List<Point> checkpoints;
         private final List<Pod> opponents;
+
+        private final List<Point> checkpoints;
+        private int currentCheckpointId;
+        private Point currentCheckpoint;
+        private final int checkpointDrift = 200;
+
         private Point currentPosition;
         private Vector currentSpeed;
         private int currentAngle;
-        private int currentCheckpointId;
 
         public Pod(List<Point> checkpoints) {
             this.checkpoints = checkpoints;
             this.opponents = new ArrayList<>();
         }
-
         public Pod(List<Point> checkpoints, List<Pod> opponents) {
             this.checkpoints = checkpoints;
             this.opponents = opponents;
@@ -65,15 +68,16 @@ class Player {
             currentSpeed = speed;
             currentAngle = angle;
             currentCheckpointId = checkpointId;
+            currentCheckpoint = checkpoints.get(currentCheckpointId);
         }
 
         private boolean canCollideWithOpponent() {
             for (Pod opponent : opponents) {
-                if (Point.distance(evalNextPosition(), opponent.evalNextPosition()) < 800
+                if (evalNextPosition().distance(opponent.evalNextPosition()) < 800
                         && currentSpeed.norm() > 400
                         && opponent.currentSpeed.norm() > 400
                         && Math.abs(currentAngle - opponent.currentAngle) <= 45
-                        && Point.distance(currentPosition, checkpoints.get(currentCheckpointId)) < Point.distance(opponent.currentPosition, checkpoints.get(currentCheckpointId))
+                        && currentPosition.isCloser(opponent.currentPosition, currentCheckpoint) > 0
                 ) {
                     return true;
                 }
@@ -85,6 +89,13 @@ class Player {
             Point target = checkpoints.get(currentCheckpointId);
             String thrust = "100";
 
+            if (angleWithCurrentCheckpoint() != 0) {
+                // create vector with norm=checkpointDrift perpendicular to checkpoint's direction, opposed to our current speed
+                Vector checkpointDir = new Vector(currentPosition, currentCheckpoint);
+                Vector driftDirection = checkpointDir.orientedNormedPerpendicular(checkpointDrift, currentSpeed);
+                target = currentCheckpoint.move(driftDirection);
+            }
+
             if (canCollideWithOpponent()) {
                 thrust = "SHIELD";
             }
@@ -93,7 +104,11 @@ class Player {
         }
 
         public Point evalNextPosition() {
-            return Point.sum(currentPosition, currentSpeed);
+            return currentPosition.move(currentSpeed);
+        }
+
+        public int angleWithCurrentCheckpoint() {
+            return currentSpeed.signedAngleBetween(new Vector(currentPosition, currentCheckpoint));
         }
 
         public String debug() {
@@ -115,8 +130,27 @@ class Player {
             this.y = y;
         }
 
-        public static int distance(Point p1, Point p2) {
-            return 0;
+        public int distance(Point other) {
+            return (new Vector(this, other)).norm();
+        }
+
+        public Point move(Vector v) {
+            return new Point(x + v.getX(), y + v.getY());
+        }
+
+        public Point rotate(Point origin, int angle) {
+            return new Point(
+                    (int) ((x - origin.x) * Math.cos(Math.toRadians(angle)) + (y - origin.y) * Math.sin(Math.toRadians(angle)) + origin.x),
+                    (int) ((x - origin.x) * -Math.sin(Math.toRadians(angle)) + (y - origin.y) * Math.cos(Math.toRadians(angle)) + origin.y)
+            );
+        }
+
+        // Return positive value if p1 is closest to ref than p2, negative value if not.
+        // Return 0 if equal
+        public int isCloser(Point other, Point ref) {
+            int dist1 = distance(ref);
+            int dist2 = other.distance(ref);
+            return Integer.compare(dist2, dist1);
         }
 
         @Override
@@ -126,28 +160,11 @@ class Player {
             Point point = (Point) o;
             return x == point.x && y == point.y;
         }
+        @Override public int hashCode() { return Objects.hash(x, y); }
+        @Override public String toString() { return String.format("(%d,%d)", x, y); }
 
-        public static Point sum(Point p1, Point p2) {
-            return new Point(p1.x + p2.x, p1.y + p2.y);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(x, y);
-        }
-
-        @Override
-        public String toString() {
-            return String.format("(%d,%d)", x, y);
-        }
-
-        public int getX() {
-            return x;
-        }
-
-        public int getY() {
-            return y;
-        }
+        public int getX() { return x; }
+        public int getY() { return y; }
 
     }
     public static class Vector extends Point {
@@ -155,9 +172,43 @@ class Player {
         public Vector(int x, int y) {
             super(x, y);
         }
+        public Vector(Point p1, Point p2) {
+            super(p2.x - p1.x, p2.y - p1.y);
+        }
 
         public int norm() {
-            return 0;
+            return (int) normDouble();
+        }
+        private double normDouble() {
+            return Math.sqrt(Math.pow(getX(), 2) + Math.pow(getY(), 2));
+        }
+
+        public int dotProduct(Vector other) {
+            return getX() * other.getX() + getY() * other.getY();
+        }
+
+        public int angleBetween(Vector other) {
+            return (int) Math.toDegrees(Math.acos(dotProduct(other) / (normDouble() * other.normDouble())));
+        }
+        public int signedAngleBetween(Vector other) {
+            return (int) Math.toDegrees(Math.atan2(
+                    getX() * other.getY() - getY() * other.getX(),
+                    getX() * other.getX() + getY() * other.getY()
+            ));
+        }
+
+        // create a perpendicular vector (normalized to input norm), oriented by diff of baseRef and current vectors
+        public Vector orientedNormedPerpendicular(int norm, Vector baseRef) {
+            if (norm == 0 || normDouble() == 0 || baseRef.normDouble() == 0) return new Vector(0, 0);
+
+            Vector diff = new Vector(getX() - baseRef.getX(), getY() - baseRef.getY());
+            Vector perpendicular = new Vector(getY(), -getX());
+            double dot = 1. * perpendicular.dotProduct(diff) / Math.abs(perpendicular.dotProduct(diff));
+
+            return new Vector(
+                    (int) (dot * perpendicular.getX() * norm / perpendicular.normDouble()),
+                    (int) (dot * perpendicular.getY() * norm / perpendicular.normDouble())
+            );
         }
     }
 }
