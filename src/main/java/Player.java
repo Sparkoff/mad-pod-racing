@@ -115,8 +115,12 @@ class Player {
             this.y = y;
         }
 
-        public static int distance(Point p1, Point p2) {
-            return 0;
+        public double distance(Point other) {
+            return Math.sqrt(Math.pow(other.x - x, 2) + Math.pow(other.y - y, 2));
+        }
+
+        public static double distance(Point p1, Point p2) {
+            return p1.distance(p2);
         }
 
         @Override
@@ -156,8 +160,13 @@ class Player {
             super(x, y);
         }
 
-        public int norm() {
-            return 0;
+        public double norm() {
+            return Math.sqrt(Math.pow(this.getX(), 2) + Math.pow(this.getY(), 2));
+        }
+
+        public double angleWith(Vector other) {
+            double angle = Math.toDegrees(Math.abs(Math.atan2(other.getY(), other.getX()) - Math.atan2(this.getY(), this.getX())));
+            return angle > 180 ? 360 - angle : angle;   // Keeps the angle between -180 and 180, like given checkpoint angle
         }
     }
 }
