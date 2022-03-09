@@ -17,14 +17,22 @@ public class PointTest {
 
     @Test
     void testMove() {
-        Player.Point p = new Player.Point(1, 1);
+        Player.Point p = new Player.Point(1, 2);
         Player.Vector v1 = new Player.Vector(0, 0);
-        Player.Vector v2 = new Player.Vector(1, 2);
-        Player.Vector v3 = new Player.Vector(-1, -2);
+        Player.Vector v2 = new Player.Vector(2, 3);
+        Player.Vector v3 = new Player.Vector(-2, -1);
 
         assertEquals(p, p.move(v1));
-        assertEquals(new Player.Point(2, 3), p.move(v2));
-        assertEquals(new Player.Point(0, -1), p.move(v3));
+        assertEquals(p, p.move(v2, 0));
+
+        assertEquals(new Player.Point(3, 5), p.move(v2));
+        assertEquals(new Player.Point(5, 8), p.move(v2, 2));
+
+        assertEquals(new Player.Point(-1, 1), p.move(v3));
+        assertEquals(new Player.Point(-5, -1), p.move(v3, 3));
+
+        assertEquals(new Player.Point(-1, -1), p.move(v2, -1));
+        assertEquals(new Player.Point(2, 2), p.move(v3, -0.5));
     }
 
     @Test

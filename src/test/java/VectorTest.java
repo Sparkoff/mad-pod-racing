@@ -59,6 +59,19 @@ public class VectorTest {
     }
 
     @Test
+    void testAngleRef() {
+        Player.Vector v1 = new Player.Vector(1, 0);
+        Player.Vector v2 = new Player.Vector(0, 1);
+        Player.Vector v3 = new Player.Vector(2, -2);
+        Player.Vector v4 = new Player.Vector(3, 4);
+
+        assertEquals(0, v1.angleRef());
+        assertEquals(270, v2.angleRef());
+        assertEquals(45, v3.angleRef());
+        assertEquals(307, v4.angleRef());
+    }
+
+    @Test
     void testOrientedNormedPerpendicular() {
         Player.Vector v0 = new Player.Vector(0, 0);
         Player.Vector v1 = new Player.Vector(-1, 4);
