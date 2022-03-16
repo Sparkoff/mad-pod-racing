@@ -23,8 +23,8 @@ class Player {
                 new Pod(checkpoints)
         );
         List<Pod> ownPods = Arrays.asList(
-                new Pod(checkpoints, opponentPods),
-                new Pod(checkpoints, opponentPods)
+                new Pod(checkpoints, opponentPods, false),
+                new Pod(checkpoints, opponentPods, true)
         );
 
         // game loop
@@ -42,28 +42,40 @@ class Player {
 
     }
 
+    public static class Team {
+        private final List<Pod> pods;
+
+        public Team(List<Pod> pods) {
+            this.pods = pods;
+        }
+    }
+
     public static class Pod {
         private final List<Pod> opponents;
 
         private final List<Point> checkpoints;
         private int currentCheckpointId = -1;
         private Point currentCheckpoint;
-        private Vector currentCheckpointDir;
+        private int angleWithCurrentCheckpoint = 0;
         private int checkpointPassedCount = 0;
+        private boolean isAhead;
+        private int frame = 0;
 
         private Point currentPosition;
         private Vector currentSpeed;
         private int currentAngle;
 
         private int shieldCount = 0;
+        private boolean boostHappened = false;
 
         public Pod(List<Point> checkpoints) {
             this.checkpoints = checkpoints;
             this.opponents = new ArrayList<>();
         }
-        public Pod(List<Point> checkpoints, List<Pod> opponents) {
+        public Pod(List<Point> checkpoints, List<Pod> opponents, boolean isAhead) {
             this.checkpoints = checkpoints;
             this.opponents = opponents;
+            this.isAhead = isAhead;
         }
 
         public void update(Point position, Vector speed, int angle, int checkpointId) {
@@ -77,13 +89,15 @@ class Player {
             currentCheckpointId = checkpointId;
 
             currentCheckpoint = checkpoints.get(currentCheckpointId);
-            currentCheckpointDir = new Vector(currentPosition, currentCheckpoint);
+            angleWithCurrentCheckpoint = Math.abs(new Vector(currentPosition, currentCheckpoint).absoluteAngle()
+                    - currentAngle);
+            frame++;
         }
 
         private boolean canCollideWithOpponent() {
             for (Pod opponent : opponents) {
                 if (evalNextPosition().distance(opponent.evalNextPosition()) < 800  // collision
-                        && opponent.currentSpeed.norm() > 400  // opponent speed > 400
+                        // && opponent.currentSpeed.norm() > 400  // opponent speed > 400
                         // && currentSpeed.norm() > 400  // our speed > 400
                         // && Math.abs(currentAngle - opponent.currentAngle) <= 45  // opponent from rear
                         // && currentPosition.isCloser(opponent.currentPosition, currentCheckpoint) > 0  // we are closer to checkpoint
@@ -95,22 +109,23 @@ class Player {
         }
 
         public String compute() {
-            Point target = currentCheckpoint;
+            Point target = currentCheckpoint.move(currentSpeed, -3);
             String thrust = "100";
 
-            if (angleWithCurrentCheckpoint() != 0) {
-                target = currentCheckpoint.move(currentSpeed, -3);
-            }
-
-            if (canCollideWithOpponent()) {
+            if (frame == 1 && isAhead) {
+                thrust = "BOOST";
+                boostHappened = true;
+            } else if (canCollideWithOpponent()) {
                 thrust = "SHIELD";
                 shieldCount++;
-            } else if (
-                    Math.abs(currentCheckpointDir.angleRef() - currentAngle) < 5
+            } else if (angleWithCurrentCheckpoint < 5
                             && currentPosition.distance(currentCheckpoint) > 5000
-                            // && checkpointPassedCount >= 1
-            ) {
+                            && !boostHappened
+                            && frame > 5) {
                 thrust = "BOOST";
+                boostHappened = true;
+            } else if (angleWithCurrentCheckpoint > 90 && frame > 5) {
+                thrust = "0";
             }
 //            else if (Math.abs(currentCheckpointDir.angleRef() - currentAngle) > 90) {
 //                thrust = "0";
@@ -133,7 +148,11 @@ class Player {
                     "Speed" + currentSpeed,
                     "Angle " + currentAngle,
                     "Checkpoint " + currentCheckpointId,
-                    "Shield in use " + shieldCount
+                    "Shield in use " + shieldCount,
+                    boostHappened ? "Boost happened" : "",
+                    "Angle with checkpoint " + Math.abs(new Vector(currentPosition, currentCheckpoint).absoluteAngle() - currentAngle),
+                    "Frame " + frame,
+                    "is ahead " + isAhead
             ));
         }
     }
@@ -218,8 +237,8 @@ class Player {
             ));
         }
 
-        public int angleRef() {
-            int horizonAngle = signedAngleBetween(new Vector(1, 0));
+        public int absoluteAngle() {
+            int horizonAngle = - signedAngleBetween(new Vector(1, 0));
             if (horizonAngle >= 0) {
                 return horizonAngle;
             } else {

@@ -59,16 +59,22 @@ public class VectorTest {
     }
 
     @Test
-    void testAngleRef() {
+    void testAbsoluteAngle() {
         Player.Vector v1 = new Player.Vector(1, 0);
-        Player.Vector v2 = new Player.Vector(0, 1);
-        Player.Vector v3 = new Player.Vector(2, -2);
+        Player.Vector v2 = new Player.Vector(2, 2);
+        Player.Vector v3 = new Player.Vector(0, 1);
         Player.Vector v4 = new Player.Vector(3, 4);
+        Player.Vector v5 = new Player.Vector(2, -1);
+        Player.Vector v6 = new Player.Vector(-1, -1);
+        Player.Vector v7 = new Player.Vector(-2, 3);
 
-        assertEquals(0, v1.angleRef());
-        assertEquals(270, v2.angleRef());
-        assertEquals(45, v3.angleRef());
-        assertEquals(307, v4.angleRef());
+        assertEquals(0, v1.absoluteAngle());
+        assertEquals(45, v2.absoluteAngle());
+        assertEquals(90, v3.absoluteAngle());
+        assertEquals(53, v4.absoluteAngle());
+        assertEquals(334, v5.absoluteAngle());
+        assertEquals(180+45, v6.absoluteAngle());
+        assertEquals(123, v7.absoluteAngle());
     }
 
     @Test
